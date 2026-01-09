@@ -1,14 +1,14 @@
 # Subtitle Translator
 
-A simple SRT subtitle translator that preserves exact formatting (line endings, blank lines) while translating text via OpenAI models. Supports glossary guidance, chunked requests, dry-run validation, and token usage logging.
+Single-file SRT translator that preserves exact formatting (line endings, blank lines, numbering, timestamps) while translating text via OpenAI. It runs in chunks for large files, maintains a rolling glossary across calls, and supports adjustable debug output.
 
 ## Features
 - Preserves SRT numbering, timestamps, blank lines, and original line endings.
-- Chunked translation to handle large files.
-- Optional glossary prompt guidance (`source = target` per line).
+- Chunked translation for large files; structured JSON output with coercion if counts drift.
+- Rolling, model-generated glossary carried across chunks for consistent names/tone.
+- Default output naming: if no output is given, writes alongside the input as `<input>.<langcode>.srt`.
+- Debug levels: 0 minimal (with progress), 1 progress + token usage, 2 includes per-request payloads.
 - Dry-run mode to validate parsing without API calls or file writes.
-- Token usage logging per chunk and totals when the API returns usage data.
-- Graceful handling when the model returns the wrong line count (pads/truncates with a warning).
 
 ## Requirements
 - Python 3.9+
@@ -20,58 +20,42 @@ Install dependencies:
 py -m pip install openai
 ```
 
-Set your API key (PowerShell):
+Set your API key (PowerShell example):
 ```powershell
 $env:OPENAI_API_KEY="sk-..."
 ```
 
 ## Usage
-Dry run (no API calls, no output file):
+Dry run (parse only):
 ```bash
-python translator.py input.srt output.srt --dry-run
+python translator.py input.srt --dry-run
 ```
 
-Translate:
+Translate (default output next to input, e.g., `input.bg.srt`):
 ```bash
-python translator.py input.srt output.srt \
-  --model gpt-5.2 \
-  --target-lang Bulgarian \
-  --chunk-size 300 \
-  --glossary glossary.txt
+python translator.py input.srt --target-lang Bulgarian --model gpt-5.2 --chunk-size 300 --debug 1
+```
+
+Specify an explicit output path:
+```bash
+python translator.py input.srt output.srt --target-lang Spanish
 ```
 
 ### CLI options
-- `input_srt` (positional): path to input `.srt`.
-- `output_srt` (positional): path to write translated `.srt`.
+- `input_srt` (positional): source `.srt` file (required; must end with `.srt`).
+- `output_srt` (positional, optional): destination `.srt`; defaults to `<input>.<langcode>.srt`.
 - `--model`: model name (default `gpt-5.2`).
 - `--chunk-size`: subtitle blocks per API call (default 300).
-- `--glossary`: path to glossary file.
 - `--source-lang-hint`: hint for source language(s) (default `English`).
 - `--target-lang`: target language (default `Bulgarian`).
+- `--debug`: 0=minimal+progress, 1=progress+usage, 2=request payloads.
 - `--dry-run`: parse/validate only; no API calls or output writes.
 
-### Glossary format
-File with one mapping per line:
-```
-source term = target term
-```
-Blank lines and lines starting with `#` are ignored.
-
-Example (`glossary.txt`):
-```
-OFPRA = OFPRA
-UFDG = UFDG
-phone units = airtime
-```
-
 ## Notes and behavior
-- Keeps the same number of blocks and lines per block; if the model returns fewer/more lines for a block, the script logs a warning and pads/truncates to match the original line count.
-- Token usage logging depends on the model/API returning `usage` fields.
-- Line endings are preserved from the input file; any missing endings default to `\n` when rebuilding.
-
-## Developing
-- Run type checks/linters as desired; no extra tooling is required.
-- The code is single-file (`translator.py`) for simplicity.
+- Enforces same block/line counts; trims/pads when the model drifts and logs at debug≥1.
+- Rolling glossary: each chunk returns a concise glossary/consistency list; reused on the next chunk.
+- Token usage logging depends on the API returning `usage` fields.
+- Line endings are preserved; missing endings default to `\n` when rebuilding.
 
 ## License
 MIT. See `LICENSE`.
