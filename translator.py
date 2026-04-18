@@ -304,7 +304,11 @@ def main():
         if output_path.suffix.lower() != ".srt":
             output_path = output_path.with_suffix(".srt")
     else:
-        output_path = input_path.with_name(f"{input_path.stem}.{lang_code}.srt")
+        stem = input_path.stem
+        parts = stem.rsplit(".", 1)
+        if len(parts) == 2 and re.fullmatch(r"[a-zA-Z]{2,3}", parts[1]):
+            stem = parts[0]
+        output_path = input_path.with_name(f"{stem}.{lang_code}.srt")
 
     log(f"Input file: {input_path}", level=0)
     log(f"Output file: {output_path}", level=0)

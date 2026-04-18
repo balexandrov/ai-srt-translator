@@ -1,0 +1,6 @@
+.venv/
+*.srt
+api.txt
+*.reg
+__pycache__/
+*.pyc
