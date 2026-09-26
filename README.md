@@ -17,7 +17,7 @@ Single-file SRT translator that preserves exact formatting (line endings, blank 
 
 Install dependencies:
 ```bash
-py -m pip install openai
+python -m pip install -U openai
 ```
 
 Set your API key (PowerShell example):
@@ -33,7 +33,7 @@ python translator.py input.srt --dry-run
 
 Translate (default output next to input, e.g., `input.bg.srt`):
 ```bash
-python translator.py input.srt --target-lang Bulgarian --model gpt-5.2 --chunk-size 300 --debug 1
+python translator.py input.srt --target-lang Bulgarian --model gpt-5.5 --chunk-size 300 --debug 1
 ```
 
 Specify an explicit output path:
@@ -44,7 +44,7 @@ python translator.py input.srt output.srt --target-lang Spanish
 ### CLI options
 - `input_srt` (positional): source `.srt` file (required; must end with `.srt`).
 - `output_srt` (positional, optional): destination `.srt`; defaults to `<input>.<langcode>.srt`.
-- `--model`: model name (default `gpt-5.2`).
+- `--model`: model name (default `gpt-5.5`).
 - `--chunk-size`: subtitle blocks per API call (default 300).
 - `--source-lang-hint`: hint for source language(s) (default `English`).
 - `--target-lang`: target language (default `Bulgarian`).

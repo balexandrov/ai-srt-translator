@@ -1,11 +1,12 @@
 import argparse
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple
 
-from openai import OpenAI
+from openai import BadRequestError, OpenAI
 
 
 DEBUG_LEVEL = 0
@@ -128,6 +129,21 @@ def derive_lang_code(lang: str) -> str:
 # OpenAI call (Structured Outputs JSON schema)
 # ----------------------------
 
+# Models that reject `temperature` (e.g. gpt-5.5); learned at runtime.
+_NO_TEMPERATURE_MODELS: set = set()
+
+def _create_response(client: OpenAI, model: str, **kwargs):
+    """responses.create with temperature=0 when the model supports it; otherwise retry without it."""
+    if model not in _NO_TEMPERATURE_MODELS:
+        try:
+            return client.responses.create(model=model, temperature=0, **kwargs)
+        except BadRequestError as e:
+            if getattr(e, "param", None) != "temperature":
+                raise
+            _NO_TEMPERATURE_MODELS.add(model)
+            log(f"Model {model} does not support temperature; continuing without it", level=0)
+    return client.responses.create(model=model, **kwargs)
+
 def translate_chunk(
     client: OpenAI,
     model: str,
@@ -205,9 +221,9 @@ Return ONLY valid JSON matching the provided schema.
     if DEBUG_LEVEL >= 2:
         log(f"Request payload: instructions=\n{instructions}\ninput={json.dumps(user_input_obj, ensure_ascii=False)}", level=2)
 
-    resp = client.responses.create(
+    resp = _create_response(
+        client,
         model=model,
-        temperature=0,
         instructions=instructions,
         input=json.dumps(user_input_obj, ensure_ascii=False),
         text={
@@ -277,7 +293,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("input_srt", help="Path to input .srt")
     ap.add_argument("output_srt", nargs="?", help="Path to output .srt (optional; defaults to input name + .<lang>.srt)")
-    ap.add_argument("--model", default="gpt-5.2", help="Model name (e.g. gpt-5.2, gpt-4o-mini)")
+    ap.add_argument("--model", default="gpt-5.5", help="Model name (e.g. gpt-5.5, gpt-5.4-mini)")
     ap.add_argument("--chunk-size", type=int, default=300, help="Subtitle blocks per API call")
     ap.add_argument("--source-lang-hint", default="English", help="Hint for source language(s)")
     ap.add_argument("--target-lang", default="Bulgarian", help="Target language")
@@ -287,6 +303,9 @@ def main():
 
     global DEBUG_LEVEL
     DEBUG_LEVEL = args.debug
+
+    # Logs include subtitle text in any script; don't let a cp1252 console crash the run.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     log(
         f"Starting translation; model={args.model}; target={args.target_lang}; chunk_size={args.chunk_size}; dry_run={args.dry_run}; debug={args.debug}",
@@ -313,7 +332,8 @@ def main():
     log(f"Input file: {input_path}", level=0)
     log(f"Output file: {output_path}", level=0)
 
-    raw = input_path.read_text(encoding="utf-8", errors="strict")
+    # Decode bytes directly: read_text/write_text translate newlines on Windows, breaking \r\n vs \n preservation.
+    raw = input_path.read_bytes().decode("utf-8", errors="strict")
     blocks, preamble = parse_srt_preserve(raw)
     total_blocks = len(blocks)
     log(f"Parsed SRT: {total_blocks} blocks", level=1)
@@ -389,7 +409,7 @@ def main():
         log(f"Progress: {end}/{total_blocks} blocks translated", level=0)
 
     out = rebuild_srt(blocks, preamble)
-    output_path.write_text(out, encoding="utf-8")
+    output_path.write_bytes(out.encode("utf-8"))
     log(f"Done -> {output_path}", level=0)
 
     if DEBUG_LEVEL >= 1:

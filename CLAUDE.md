@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Setup
 
 ```bash
-py -m pip install openai
+python -m pip install -U openai
 export OPENAI_API_KEY="sk-..."   # or $env:OPENAI_API_KEY on PowerShell
 ```
 
@@ -18,7 +18,7 @@ No `requirements.txt` exists; the only external dependency is the `openai` SDK.
 python translator.py input.srt --dry-run
 
 # Translate (output written to input.bg.srt by default)
-python translator.py input.srt --target-lang Bulgarian --model gpt-5.2 --chunk-size 300 --debug 1
+python translator.py input.srt --target-lang Bulgarian --model gpt-5.5 --chunk-size 300 --debug 1
 
 # Explicit output path
 python translator.py input.srt output.srt --target-lang Spanish
@@ -38,7 +38,7 @@ Everything lives in the single file [translator.py](translator.py). The pipeline
 
 - Block count and per-block line count must never change between input and output. The model is constrained by `minItems`/`maxItems` in the schema; any remaining drift is coerced (truncated or padded with `""`) and logged at `debug >= 1`.
 - Original line endings (`\r\n` / `\n`) are extracted from `text_lines` before sending to the model and reattached after — the model only ever sees/returns plain text strings.
-- `temperature=0` is hardcoded for deterministic output.
+- `temperature=0` is sent for deterministic output; models that reject it (e.g. gpt-5.5) get a one-time 400, after which `_create_response` omits it for the rest of the run.
 
 ### Debug levels
 
